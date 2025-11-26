@@ -1,0 +1,31 @@
+- name: MetalLB 네임스페이스 생성
+  shell: kubectl create namespace metallb-system || true
+  environment:
+    KUBECONFIG: /root/.kube/config
+  changed_when: false
+
+- name: (MetalLB) Manifest 파일 적용
+  shell: kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.8/config/manifests/metallb-native.yaml
+  args:
+    creates: /etc/kubernetes/metallb-installed
+
+- name: (MetalLB) 컨트롤러 배포가 준비될 때까지 대기
+  shell: kubectl wait deployment/controller -n metallb-system --for=condition=Available --timeout=5m
+  environment:
+    KUBECONFIG: /root/.kube/config
+  changed_when: false
+
+- name: (MetalLB) IP 주소 풀 템플릿 배포
+  template:
+    src: metallb-config.yml.j2
+    dest: /tmp/metallb-config.yml
+
+- name: (MetalLB) IP 주소 풀 설정 적용
+  shell: kubectl apply -f /tmp/metallb-config.yml --validate=false
+  environment:
+    KUBECONFIG: /root/.kube/config
+  retries: 10
+  delay: 10
+  register: metallb_config
+  until: metallb_config.rc == 0
+  changed_when: false

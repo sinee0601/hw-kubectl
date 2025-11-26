@@ -1,0 +1,46 @@
+pipeline {
+    agent any
+
+    environment {
+        REGISTRY = "docker-registry.default.svc.cluster.local:5000"
+        IMAGE_NAME = "testapp"
+        IMAGE_TAG = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    echo "Building image ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+                    docker.build("${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}", ".")
+                }
+            }
+        }
+        stage('Push to Registry') {
+            steps {
+                script {
+                    echo "Pushing image to ${REGISTRY}"
+                    docker.withRegistry("http://${REGISTRY}", '') {
+                        docker.image("${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}").push()
+                    }
+                }
+            }
+        }
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    echo "Deploying to Kubernetes"
+                    sh "sed -i 's|image:.*|image: ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}|g' k8s/deployment.yaml"
+                    sh "kubectl apply -f k8s/deployment.yaml"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Cleaning up workspace..."
+            cleanWs()
+        }
+    }
+}

@@ -1,0 +1,17 @@
+- name: Kubernetes 마스터 노드
+  hosts: k8s_master
+  become: yes 
+  roles:
+    - k8s_master
+
+- name: Kubernetes 워커 노드
+  hosts: k8s_worker
+  become: yes
+  roles:
+    - k8s_worker
+
+- name: MetalLB 구성
+  hosts: k8s_master
+  become: yes
+  roles:
+     - metallb
